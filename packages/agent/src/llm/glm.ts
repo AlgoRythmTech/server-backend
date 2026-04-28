@@ -103,7 +103,7 @@ export class GlmClient {
       },
       body: JSON.stringify(body),
       bodyTimeout: this.cfg.timeoutMs,
-      headersTimeout: 30_000,
+      headersTimeout: 120_000,
     });
 
     const text = await res.body.text();
@@ -178,7 +178,7 @@ export class GlmClient {
       },
       body: JSON.stringify(body),
       bodyTimeout: 0,
-      headersTimeout: 30_000,
+      headersTimeout: 120_000,
     });
 
     if (res.statusCode >= 400) {

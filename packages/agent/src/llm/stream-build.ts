@@ -163,7 +163,7 @@ export async function* streamBuild(args: StreamBuildArgs): AsyncGenerator<Stream
         system: augmented,
         userPrompt: args.userPrompt,
         ...(args.context !== undefined ? { context: args.context } : {}),
-        maxTokens: args.maxTokens ?? 65536,
+        maxTokens: args.maxTokens ?? 8192,
         ...(args.signal ? { signal: args.signal } : {}),
       });
       return;

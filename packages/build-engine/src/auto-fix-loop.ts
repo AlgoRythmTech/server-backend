@@ -130,7 +130,9 @@ export interface AutoFixResult {
   history: AutoFixCycleEvent[];
 }
 
-const DEFAULT_MAX_CYCLES = 3;
+// More cycles = more chances to get it perfect. GLM-5.1 can sustain
+// optimization over hundreds of rounds. Give it room to iterate.
+const DEFAULT_MAX_CYCLES = 5;
 
 export async function runAutoFixLoop(args: AutoFixArgs): Promise<AutoFixResult> {
   const maxCycles = args.maxCycles ?? DEFAULT_MAX_CYCLES;

@@ -64,7 +64,7 @@ export class GlmClient {
       apiBase: process.env.NVIDIA_NIM_API_BASE ?? 'https://integrate.api.nvidia.com/v1',
       model: process.env.GLM_MODEL ?? 'z-ai/glm-5.1',
       enabled: (process.env.GLM_ENABLED ?? '').toLowerCase() === 'true',
-      timeoutMs: 300_000, // 5 min — GLM-5.1 can run for hours on complex tasks
+      timeoutMs: 600_000, // 10 min — GLM-5.1 can run for hours on complex tasks
     });
   }
 
@@ -103,7 +103,7 @@ export class GlmClient {
       },
       body: JSON.stringify(body),
       bodyTimeout: this.cfg.timeoutMs,
-      headersTimeout: 120_000,
+      headersTimeout: 300_000,
     });
 
     const text = await res.body.text();
@@ -178,7 +178,7 @@ export class GlmClient {
       },
       body: JSON.stringify(body),
       bodyTimeout: 0,
-      headersTimeout: 120_000,
+      headersTimeout: 300_000,
     });
 
     if (res.statusCode >= 400) {

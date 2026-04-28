@@ -124,29 +124,61 @@ export async function* streamBuild(args: StreamBuildArgs): AsyncGenerator<Stream
     try {
       buildLog.info({ model: 'glm-5.1' }, 'attempting GLM-5.1 for code generation (SWE-Bench #1)');
 
-      // GLM-5.1 gets an enhanced system prompt that leverages its strengths:
-      // - 200K context: we can include MORE reference code and existing files
-      // - 128K output: it can emit 40+ files in one shot, no truncation
-      // - #1 SWE-Bench: it understands complex codebases better than any model
       const glmSystemPrompt = augmented + GLM_ENHANCEMENT_PROMPT;
+      const glmUserPrompt = args.userPrompt + (args.context ? `\n\n# Context\n\n${args.context}` : '');
 
+      // GLM-5.1 takes 30-120s to START responding on large prompts.
+      // While it thinks, we yield "thinking" progress so the UI shows activity.
+      // This is what Replit Agent and Emergent do — show the agent "working."
+      const thinkingMessages = [
+        'Analyzing project requirements and constraints...',
+        'Designing database schema and data models...',
+        'Planning API routes and validation schemas...',
+        'Architecting component hierarchy and state flow...',
+        'Selecting security patterns and auth strategy...',
+        'Preparing email templates and notification system...',
+        'Structuring test suite and eval criteria...',
+        'GLM-5.1 is reasoning deeply — building production code...',
+        'Generating complete file tree — this is a complex build...',
+        'Almost ready — finalizing architecture decisions...',
+      ];
+      let thinkingIdx = 0;
       let fullText = '';
-      for await (const chunk of glm.stream({
-        systemPrompt: glmSystemPrompt,
-        userPrompt: args.userPrompt + (args.context ? `\n\n# Context\n\n${args.context}` : ''),
-        maxTokens: args.maxTokens ?? 131072, // GLM-5.1 max: 128K tokens — USE IT ALL
-      })) {
-        fullText = chunk.fullText;
-        yield {
-          fullText: chunk.fullText,
-          delta: chunk.delta,
-          totalTokens: chunk.totalTokens,
-          done: chunk.done,
-          aborted: false,
-        };
-        if (chunk.done) return;
+      let firstChunkReceived = false;
+
+      // Yield thinking messages every 6 seconds until real chunks arrive
+      const thinkingTimer = setInterval(() => {
+        if (!firstChunkReceived && thinkingIdx < thinkingMessages.length) {
+          buildLog.info({ step: thinkingIdx + 1 }, thinkingMessages[thinkingIdx]!);
+          thinkingIdx++;
+        }
+      }, 6000);
+
+      try {
+        for await (const chunk of glm.stream({
+          systemPrompt: glmSystemPrompt,
+          userPrompt: glmUserPrompt,
+          maxTokens: args.maxTokens ?? 131072,
+        })) {
+          if (!firstChunkReceived) {
+            firstChunkReceived = true;
+            clearInterval(thinkingTimer);
+            buildLog.info('GLM-5.1 started generating code — streaming now');
+          }
+          fullText = chunk.fullText;
+          yield {
+            fullText: chunk.fullText,
+            delta: chunk.delta,
+            totalTokens: chunk.totalTokens,
+            done: chunk.done,
+            aborted: false,
+          };
+          if (chunk.done) return;
+        }
+        return;
+      } finally {
+        clearInterval(thinkingTimer);
       }
-      return;
     } catch (glmErr) {
       buildLog.warn({ err: String(glmErr).slice(0, 200) }, 'GLM-5.1 failed, falling back to GPT-5.5');
       lastErr = glmErr as Error;

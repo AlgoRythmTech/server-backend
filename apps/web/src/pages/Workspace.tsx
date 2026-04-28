@@ -35,6 +35,7 @@ import { AgentBuilder } from '../components/AgentBuilder.js';
 import { PipelineVisualization } from '../components/PipelineVisualization.js';
 import { CreditShield } from '../components/CreditShield.js';
 import { UsageDashboard } from '../components/UsageDashboard.js';
+import { BuildProgress } from '../components/BuildProgress.js';
 import { ErrorBoundary } from '../components/ErrorBoundary.js';
 import { cn } from '../lib/utils.js';
 
@@ -491,7 +492,19 @@ export function Workspace() {
         )}
       </aside>
 
-      {showLoader && <AiLoader text={loaderText(builderState, deploy.phase)} />}
+      {showLoader && (deploy.phase === 'building' || deploy.phase === 'testing' || deploy.phase === 'deploying') ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md h-[520px] rounded-2xl border border-argo-border bg-argo-bg shadow-2xl overflow-hidden">
+            <BuildProgress
+              phase={'message' in deploy ? '' : ''}
+              message={'message' in deploy ? (deploy as { message: string }).message : ''}
+              active={showLoader}
+            />
+          </div>
+        </div>
+      ) : showLoader ? (
+        <AiLoader text={loaderText(builderState, deploy.phase)} />
+      ) : null}
 
       {showCreateModal && (
         <CreateOperationModal

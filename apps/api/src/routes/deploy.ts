@@ -23,7 +23,7 @@ import {
   type OperationBundle,
 } from '@argo/workspace-runtime';
 import type { ProjectBrief, WorkflowMap } from '@argo/shared-types';
-import { getPrisma } from '../db/prisma.js';
+import { getPrisma, ensurePrismaConnected } from '../db/prisma.js';
 import { getMongo } from '../db/mongo.js';
 import { requireSession } from '../plugins/auth-plugin.js';
 import { appendActivity } from '../stores/activity-store.js';
@@ -163,6 +163,8 @@ export async function registerDeployRoutes(app: FastifyInstance) {
         });
         bundle = result.bundle;
         aiCycles = result.cycles;
+        // Reconnect Prisma — Neon may have dropped the connection during the long build
+        await ensurePrismaConnected();
         if (!result.success || !bundle) {
           await getPrisma().operation.update({ where: { id: op.id }, data: { status: 'failed_build' } });
           return reply.code(422).send({
@@ -172,6 +174,7 @@ export async function registerDeployRoutes(app: FastifyInstance) {
           });
         }
       } catch (err) {
+        await ensurePrismaConnected();
         await getPrisma().operation.update({ where: { id: op.id }, data: { status: 'failed_build' } });
         logger.error({ err }, 'autofix loop crashed');
         return reply.code(500).send({ error: 'autofix_crash', detail: String(err).slice(0, 400) });
@@ -244,6 +247,7 @@ export async function registerDeployRoutes(app: FastifyInstance) {
     });
 
     // ── TESTING ────────────────────────────────────────────────────────
+    await ensurePrismaConnected();
     await getPrisma().operation.update({ where: { id: op.id }, data: { status: 'testing' } });
     broadcastToOwner(session.userId, { type: 'operation_status', operationId: op.id, status: 'testing' });
 
@@ -261,6 +265,7 @@ export async function registerDeployRoutes(app: FastifyInstance) {
     }
 
     // ── DEPLOY ─────────────────────────────────────────────────────────
+    await ensurePrismaConnected();
     await getPrisma().operation.update({ where: { id: op.id }, data: { status: 'deploying' } });
     broadcastToOwner(session.userId, { type: 'operation_status', operationId: op.id, status: 'deploying' });
 

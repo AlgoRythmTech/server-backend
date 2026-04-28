@@ -12,6 +12,10 @@ import {
 } from '../supermemory/context-augment.js';
 import { findToolCalls, replaceToolCallsWithResults } from '../tools/tool-call-parser.js';
 import { runToolCall } from '../tools/run-tool-call.js';
+import { GlmClient } from './glm.js';
+import pino from 'pino';
+
+const buildLog = pino({ name: 'stream-build', level: process.env.LOG_LEVEL ?? 'info' });
 
 export interface StreamBuildArgs {
   specialist: Specialist;
@@ -59,7 +63,13 @@ export interface StreamBuildChunk {
  * tag parser to extract structured actions.
  */
 export async function* streamBuild(args: StreamBuildArgs): AsyncGenerator<StreamBuildChunk> {
-  // Prefer direct OpenAI key; fall back to Emergent universal key.
+  // ── MODEL PRIORITY: GLM-5.1 (best coder) → GPT-5.5 → GPT-4o → Emergent ──
+  //
+  // GLM-5.1 is #1 on SWE-Bench Pro (58.4), beating Claude Opus 4.6 and GPT-5.4.
+  // It has 200K context and 128K output — can emit 30+ files in one shot.
+  // We try it FIRST for code generation, then fall back to GPT-5.5 if it fails.
+
+  const glm = GlmClient.fromEnv();
   let apiKey = process.env.OPENAI_API_KEY ?? '';
   let apiBase = process.env.OPENAI_API_BASE ?? 'https://api.openai.com/v1';
   const primary = args.model ?? process.env.OPENAI_MODEL_PRIMARY ?? 'gpt-5.5';
@@ -71,8 +81,8 @@ export async function* streamBuild(args: StreamBuildArgs): AsyncGenerator<Stream
     if (emergentEnabled && emergentKey) {
       apiKey = emergentKey;
       apiBase = process.env.EMERGENT_API_BASE ?? 'https://api.emergent.sh/v1';
-    } else {
-      throw new Error('OPENAI_API_KEY missing and EMERGENT_ENABLED=false — set one in .env.local before invoking the build agent');
+    } else if (!glm.isEnabled) {
+      throw new Error('No LLM configured — set OPENAI_API_KEY, EMERGENT_API_KEY, or NVIDIA_NIM_API_KEY');
     }
   }
 
@@ -109,6 +119,34 @@ export async function* streamBuild(args: StreamBuildArgs): AsyncGenerator<Stream
     augmented = [baseSystem, snippetSection, memorySection].filter(Boolean).join('\n\n');
   }
 
+  // ── TRY GLM-5.1 FIRST (best coding model in the world) ──────────────
+  if (glm.isEnabled) {
+    try {
+      buildLog.info({ model: 'glm-5.1' }, 'attempting GLM-5.1 for code generation (SWE-Bench #1)');
+      let fullText = '';
+      for await (const chunk of glm.stream({
+        systemPrompt: augmented,
+        userPrompt: args.userPrompt + (args.context ? `\n\n# Context\n\n${args.context}` : ''),
+        maxTokens: args.maxTokens ?? 32768, // GLM can output 128K tokens
+      })) {
+        fullText = chunk.fullText;
+        yield {
+          fullText: chunk.fullText,
+          delta: chunk.delta,
+          totalTokens: chunk.totalTokens,
+          done: chunk.done,
+          aborted: false,
+        };
+        if (chunk.done) return;
+      }
+      return;
+    } catch (glmErr) {
+      buildLog.warn({ err: String(glmErr).slice(0, 200) }, 'GLM-5.1 failed, falling back to GPT-5.5');
+      lastErr = glmErr as Error;
+    }
+  }
+
+  // ── FALLBACK: GPT-5.5 → GPT-4o → Emergent ────────────────────────
   for (const model of candidates) {
     try {
       yield* streamOnce({

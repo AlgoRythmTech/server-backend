@@ -38,7 +38,7 @@ export function renderBriefAsPrompt(brief: ProjectBrief): string {
 
   lines.push('## Trigger');
   lines.push(`- ${brief.trigger}`);
-  if (brief.trigger === 'form_submission' && brief.fields.length > 0) {
+  if (brief.trigger === 'form_submission' && (brief.fields?.length ?? 0) > 0) {
     lines.push('');
     lines.push('## Form fields (the public form ingests these — generate Zod + HTML for each)');
     for (const f of brief.fields) {
@@ -56,7 +56,7 @@ export function renderBriefAsPrompt(brief: ProjectBrief): string {
   lines.push(`- ${brief.auth}`);
   lines.push('');
 
-  if (brief.integrations.length > 0) {
+  if ((brief.integrations?.length ?? 0) > 0) {
     lines.push('## Integrations to wire');
     for (const i of brief.integrations) {
       lines.push(`- **${i}** — ${INTEGRATION_DESCRIPTIONS[i] ?? '(no canonical pattern; pick the obvious choice)'}`);
@@ -65,8 +65,8 @@ export function renderBriefAsPrompt(brief: ProjectBrief): string {
   }
 
   lines.push('## Rate limits (fastify @fastify/rate-limit)');
-  lines.push(`- Forms: ${brief.rateLimits.formPerMinutePerIp} req/min/IP`);
-  lines.push(`- Webhooks: ${brief.rateLimits.webhookPerMinutePerIp} req/min/IP`);
+  lines.push(`- Forms: ${brief.rateLimits?.formPerMinutePerIp ?? 60} req/min/IP`);
+  lines.push(`- Webhooks: ${brief.rateLimits?.webhookPerMinutePerIp ?? 1000} req/min/IP`);
   lines.push('');
 
   lines.push('## Data classification');
@@ -89,12 +89,12 @@ export function renderBriefAsPrompt(brief: ProjectBrief): string {
 
   lines.push('## Scheduling');
   lines.push(
-    `- Weekly digest: ${brief.scheduling.digestEnabled ? 'enabled' : 'disabled'} ` +
-      `(cron "${brief.scheduling.digestCron}", tz "${brief.scheduling.digestTimezone}")`,
+    `- Weekly digest: ${brief.scheduling?.digestEnabled ? 'enabled' : 'disabled'} ` +
+      `(cron "${brief.scheduling?.digestCron ?? '0 9 * * 1'}", tz "${brief.scheduling?.digestTimezone ?? 'America/New_York'}")`,
   );
   lines.push('');
 
-  if (brief.notificationRecipients.length > 0) {
+  if ((brief.notificationRecipients?.length ?? 0) > 0) {
     lines.push('## Notification recipients (operator + their cohort)');
     for (const r of brief.notificationRecipients) lines.push(`- ${r}`);
     lines.push('');
@@ -112,7 +112,7 @@ export function renderBriefAsPrompt(brief: ProjectBrief): string {
     lines.push('');
   }
 
-  if (brief.defaulted.length > 0) {
+  if ((brief.defaulted?.length ?? 0) > 0) {
     lines.push('## Argo-defaulted fields (operator did NOT pick these — use sensible defaults)');
     for (const d of brief.defaulted) lines.push(`- ${d}`);
     lines.push('');

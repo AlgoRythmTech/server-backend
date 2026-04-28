@@ -83,6 +83,9 @@ export async function registerDeployRoutes(app: FastifyInstance) {
     await getPrisma().operation.update({ where: { id: op.id }, data: { status: 'building' } });
     broadcastToOwner(session.userId, { type: 'operation_status', operationId: op.id, status: 'building' });
 
+    // Broadcast thinking progress so the frontend shows what the agent is doing
+    broadcastToOwner(session.userId, { type: 'deploy_progress', operationId: op.id, evt: { phase: 'thinking', message: 'Analyzing requirements and planning architecture...' } });
+
     const bundleVersion = (op.bundleVersion ?? 0) + 1;
     let bundle: OperationBundle | null = null;
     let generatedByModel = 'argo-deterministic';
@@ -90,6 +93,7 @@ export async function registerDeployRoutes(app: FastifyInstance) {
 
     if (briefDoc) {
       // ── AI path: brief → GPT-5.5 + auto-fix loop ──────────────────────
+      broadcastToOwner(session.userId, { type: 'deploy_progress', operationId: op.id, evt: { phase: 'thinking', message: 'GLM-5.1 + GPT-5.5 preparing to generate production code...' } });
       const brief = briefDoc as unknown as ProjectBrief & { buildPrompt?: string };
       const buildPrompt = brief.buildPrompt ?? renderBriefAsPrompt(brief);
       const specialist = pickSpecialist({
@@ -131,6 +135,29 @@ export async function registerDeployRoutes(app: FastifyInstance) {
           // lighter ones — saves the architect + reviewer LLM calls.
           multiAgent: specialist === 'fullstack_app' || specialist === 'ai_agent_builder' || specialist === 'multi_tenant_saas',
           onCycle: (evt: AutoFixCycleEvent) => {
+            // Map auto-fix events to frontend-friendly progress messages
+            const progressMap: Record<string, { phase: string; message: string }> = {
+              architect_started: { phase: 'thinking', message: 'Architect agent designing file plan...' },
+              architect_completed: { phase: 'thinking', message: 'Architecture plan ready — starting code generation...' },
+              cycle_start: { phase: 'generating_code', message: `Cycle ${(evt as { cycle?: number }).cycle ?? 1}: Generating production code...` },
+              actions_parsed: { phase: 'generating_code', message: `Code generated — parsing files...` },
+              gate_run: { phase: 'quality_gate', message: `Running 49 quality checks...` },
+              npm_check: { phase: 'quality_gate', message: `Validating npm dependencies...` },
+              security_scan: { phase: 'security_scan', message: `Security scanner: checking 15 vulnerability categories...` },
+              verifier_run: { phase: 'verifying', message: `Verifier agent: checking for AI slop and broken imports...` },
+              test_suite_generated: { phase: 'testing', message: `Auto-generating test suite...` },
+              testing_run: { phase: 'testing', message: `Running tests against generated code...` },
+              reviewer_run: { phase: 'verifying', message: `Reviewer agent: final quality check...` },
+              cycle_complete: { phase: 'generating_code', message: (evt as { passed?: boolean }).passed ? 'All checks passed!' : `Cycle failed — re-planning and trying again...` },
+            };
+            const mapped = progressMap[evt.kind];
+            if (mapped) {
+              broadcastToOwner(session.userId, {
+                type: 'deploy_progress',
+                operationId: op.id,
+                evt: { phase: mapped.phase as 'thinking', message: mapped.message },
+              });
+            }
             broadcastToOwner(session.userId, { type: 'deploy_progress', operationId: op.id, evt });
           },
         });

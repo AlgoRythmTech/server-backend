@@ -14,11 +14,13 @@ type ServerEvent =
       type: 'deploy_progress';
       operationId: string;
       evt: {
-        phase: 'creating_sandbox' | 'uploading_files' | 'installing_dependencies' | 'starting_process' | 'health_check' | 'ready';
+        phase: 'thinking' | 'generating_code' | 'quality_gate' | 'security_scan' | 'verifying' | 'testing' | 'creating_sandbox' | 'uploading_files' | 'installing_dependencies' | 'starting_process' | 'health_check' | 'ready';
         message: string;
         filesUploaded?: number;
         filesTotal?: number;
         publicUrl?: string;
+        cycle?: number;
+        filesGenerated?: number;
       };
     }
   | { type: 'map_updated'; operationId: string; version: number };
@@ -42,6 +44,18 @@ export function connectSocket(): Socket {
     if (event.type === 'deploy_progress') {
       const evt = event.evt;
       switch (evt.phase) {
+        case 'thinking':
+        case 'generating_code':
+          argo.setDeploy({ phase: 'building', message: evt.message });
+          break;
+        case 'quality_gate':
+        case 'security_scan':
+        case 'verifying':
+          argo.setDeploy({ phase: 'testing', message: evt.message });
+          break;
+        case 'testing':
+          argo.setDeploy({ phase: 'testing', message: evt.message });
+          break;
         case 'creating_sandbox':
         case 'installing_dependencies':
         case 'starting_process':

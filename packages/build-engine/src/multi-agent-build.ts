@@ -353,7 +353,7 @@ async function callJson(args: CallJsonArgs): Promise<unknown> {
   const body: Record<string, unknown> = {
     model: args.model,
     response_format: { type: 'json_object' as const },
-    max_completion_tokens: args.maxTokens ?? 4000,
+    max_completion_tokens: args.maxTokens ?? 16384,
     messages: [
       { role: 'system' as const, content: args.system },
       { role: 'user' as const, content: args.user },

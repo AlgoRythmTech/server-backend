@@ -134,7 +134,7 @@ export async function* streamBuild(args: StreamBuildArgs): AsyncGenerator<Stream
       for await (const chunk of glm.stream({
         systemPrompt: glmSystemPrompt,
         userPrompt: args.userPrompt + (args.context ? `\n\n# Context\n\n${args.context}` : ''),
-        maxTokens: args.maxTokens ?? 32768, // GLM can output 128K tokens
+        maxTokens: args.maxTokens ?? 131072, // GLM-5.1 max: 128K tokens — USE IT ALL
       })) {
         fullText = chunk.fullText;
         yield {
@@ -163,7 +163,7 @@ export async function* streamBuild(args: StreamBuildArgs): AsyncGenerator<Stream
         system: augmented,
         userPrompt: args.userPrompt,
         ...(args.context !== undefined ? { context: args.context } : {}),
-        maxTokens: args.maxTokens ?? 16384,
+        maxTokens: args.maxTokens ?? 65536,
         ...(args.signal ? { signal: args.signal } : {}),
       });
       return;

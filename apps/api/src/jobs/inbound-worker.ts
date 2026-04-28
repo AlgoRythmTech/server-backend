@@ -15,7 +15,7 @@ import { appendActivity } from '../stores/activity-store.js';
  */
 export function startInboundWorker() {
   return new Worker(
-    'argo:inbound',
+    'argo-inbound',
     async (job) => {
       const { inboundEmailId } = job.data as { inboundEmailId: string };
       const { db } = await getMongo();

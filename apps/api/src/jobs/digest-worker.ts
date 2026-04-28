@@ -16,7 +16,7 @@ const email = createEmailAutomationService();
 
 export function startDigestWorker() {
   return new Worker(
-    'argo:digest',
+    'argo-digest',
     async (job) => {
       const { operationId } = job.data as { operationId: string };
       const op = await getPrisma().operation.findUnique({ where: { id: operationId } });

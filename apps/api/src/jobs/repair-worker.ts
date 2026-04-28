@@ -106,7 +106,7 @@ async function detectAndEnqueue() {
 
 export function startRepairWorker() {
   return new Worker(
-    'argo:repair',
+    'argo-repair',
     async (job) => {
       const { operationId, failureKind, triggerEventId } = job.data as {
         operationId: string;

@@ -202,15 +202,15 @@ export class DefaultLlmRouter implements LlmRouter {
       });
     } catch (primaryErr) {
       const e = primaryErr as Error & { status?: number };
-      // Only retry on genuinely transient errors. 404/400 indicate
-      // misconfiguration (wrong model name, bad request) — don't waste
-      // time falling back to another provider for those.
+      // Retry on transient errors AND auth failures (401 = key expired/invalid,
+      // fall back to Emergent universal key which may still work).
       const isTransient =
+        e.status === 401 ||
         e.status === 429 ||
         e.status === 500 ||
         e.status === 502 ||
         e.status === 503 ||
-        /overloaded|rate_limit|capacity|timeout|connection/i.test(e.message ?? '');
+        /overloaded|rate_limit|capacity|timeout|connection|api_key|unauthorized/i.test(e.message ?? '');
 
       if (!isTransient) throw primaryErr;
 
